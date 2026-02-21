@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import girlDisplay from "../assets/girl-display.png";
+import { useNavigate } from "react-router-dom";
 
 import {
   ChevronLeft,
@@ -60,11 +61,9 @@ interface Toast {
   type: ToastType;
 }
 
-export default function AdminDashboard({
-  onNavigate,
-}: {
-  onNavigate: (screen: string) => void;
-}) {
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -344,7 +343,7 @@ export default function AdminDashboard({
       <div className="admin-header">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             className="admin-back-btn"
           >
             <ChevronLeft className="w-5 h-5" />

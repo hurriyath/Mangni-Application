@@ -1,6 +1,5 @@
 import { ChevronLeft, CheckCircle2, Loader } from 'lucide-react';
-import { useState } from 'react';
-import girlDefault from "../assets/girl-default.png";
+import { useState, useEffect } from 'react';
 import girlDisplay from "../assets/girl-display.png";
 
 
@@ -30,8 +29,12 @@ interface Props {
 }
 
 export default function ExploreProfileDetail({ profile, onBack }: Props) {
-  const [imageLoading, setImageLoading] = useState(true);
-  const isGirl = profile.gender === "female";
+ 
+const isGirl = profile.gender === "female";
+
+useEffect(() => {
+  window.scrollTo(0, 0);
+}, []);
 
   const createdDate = new Date(profile.created_at).toLocaleDateString("en-US", {
     year: "numeric",
@@ -50,19 +53,14 @@ export default function ExploreProfileDetail({ profile, onBack }: Props) {
 
       {/* HERO IMAGE */}
       <div className="details-hero">
-        {imageLoading && (
-          <div className="details-hero-loader">
-            <Loader className="w-8 h-8 animate-spin" />
-          </div>
-        )}
 
-        <img
-          src={isGirl ? girlDisplay : profile.profile_pic}
-          alt={profile.full_name}
+        <img src={isGirl ? girlDisplay : profile.profile_pic}
+         alt={profile.full_name}
           className="details-hero-img"
-          onLoad={() => setImageLoading(false)}
-          onError={() => setImageLoading(false)}
-        />
+          
+           />
+
+
       </div>
 
       {/* NAME + VERIFIED */}

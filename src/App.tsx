@@ -1,59 +1,48 @@
-import { useState, useEffect } from "react";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
+import { getExploreHandling } from "./backButtonState";
 
 import HomeScreen from "./screens/HomeScreen";
 import AddProfile from "./screens/AddProfile";
 import FindMatches from "./screens/FindMatches";
 import AdminDashboard from "./screens/AdminDashboard";
 import EditProfile from "./screens/EditProfile";
+import Explore from "./screens/Explore";
 
 export default function App() {
-  const [screenStack, setScreenStack] = useState<string[]>(["home"]);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const currentScreen = screenStack[screenStack.length - 1];
-
-  // Navigate forward
-  const navigate = (screen: string) => {
-    setScreenStack(prev => [...prev, screen]);
-  };
-
-  // Go back
-  const goBack = () => {
-    setScreenStack(prev => {
-      if (prev.length > 1) return prev.slice(0, -1);
-      return prev;
-    });
-  };
-
-  // Android hardware back button (for future APK)
   useEffect(() => {
-  let handler: any;
+    const handler = CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      // If Explore is handling it, do nothing
+      if (getExploreHandling()) {
+        return;
+      }
 
-  const setup = async () => {
-    handler = await CapacitorApp.addListener("backButton", () => {
-      if (screenStack.length > 1) {
-        goBack();
+      if (location.pathname === '/') {
+        CapacitorApp.exitApp();
+      } else if (canGoBack) {
+        navigate(-1);
       } else {
         CapacitorApp.exitApp();
       }
     });
-  };
 
-  setup();
-
-  return () => {
-    if (handler) handler.remove();
-  };
-}, [screenStack]);
-
+    return () => {
+      handler.then(h => h.remove());
+    };
+  }, [navigate, location]);
 
   return (
-    <>
-      {currentScreen === "home" && <HomeScreen onNavigate={navigate} />}
-      {currentScreen === "add-profile" && <AddProfile onNavigate={navigate} />}
-      {currentScreen === "find-matches" && <FindMatches onNavigate={navigate} />}
-      {currentScreen === "admin-dashboard" && <AdminDashboard onNavigate={navigate} />}
-      {currentScreen === "edit-profile" && <EditProfile onNavigate={navigate} />}
-    </>
+    <Routes>
+      <Route path="/" element={<HomeScreen />} />
+      <Route path="/add-profile" element={<AddProfile />} />
+      <Route path="/find-matches" element={<FindMatches />} />
+      <Route path="/admin-dashboard" element={<AdminDashboard />} />
+      <Route path="/edit-profile" element={<EditProfile />} />
+      <Route path="/explore" element={<Explore />} />
+    </Routes>
   );
 }

@@ -4,13 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getDeviceId } from "../utils/device";
 import Cropper from "react-easy-crop";
 import imageCompression from "browser-image-compression";
-
-<button
-  onClick={() => onNavigate("home")}
-  className="p-2 bg-gray-100 rounded"
->
-  ← Back
-</button>
+import { useNavigate } from "react-router-dom";
 
 interface FormData {
   gender: 'male' | 'female' | '';
@@ -36,7 +30,10 @@ interface Toast {
 
 const FEMALE_AVATAR_URL = 'https://kmnfhmhitymwxfotqsdz.supabase.co/storage/v1/object/public/profile-photos/final%20avatar.png';
 
-export default function AddProfile({ onNavigate }: { onNavigate: (screen: string) => void }) {
+export default function AddProfile() {
+  const navigate = useNavigate();
+
+
   const [formData, setFormData] = useState<FormData>({
     gender: '',
     full_name: '',
@@ -65,7 +62,7 @@ const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<Toast | null>(null);
   const [wordCount, setWordCount] = useState(0);
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
   function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve) => {
     const image = new Image();
@@ -107,7 +104,6 @@ async function getCroppedImg(imageSrc: string, crop: any) {
 
   return canvas.toDataURL("image/jpeg");
 }
-
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
@@ -316,7 +312,7 @@ if (formData.gender === 'male' && age < 16) {
         setImageFile(null);
         setImagePreview('');
         setWordCount(0);
-        onNavigate('home');
+        navigate("/");
       }, 2500);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred. Please try again.';
@@ -331,7 +327,7 @@ if (formData.gender === 'male' && age < 16) {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-3">
         <button
-          onClick={() => onNavigate('home')}
+          onClick={() => navigate("/")}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ChevronLeft className="w-5 h-5 text-gray-700" />
@@ -595,7 +591,7 @@ if (formData.gender === 'male' && age < 16) {
         <div className="flex gap-4">
           <button
             type="button"
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate("/")}
             className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Cancel

@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import "../styles/explore.css";
 import Cropper from "react-easy-crop";
 import girlDisplay from "../assets/girl-display.png";
+import { useNavigate } from "react-router-dom";
 
 
 type Profile = {
@@ -32,7 +33,9 @@ type Profile = {
   deleted_by_user?: boolean; // optional column if you add
 };
 
-export default function EditProfile({ onNavigate }: { onNavigate: (s: string) => void }) {
+export default function EditProfile() {
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -278,7 +281,7 @@ await supabase.from("deleted_profiles").insert({
     if (error) throw error;
 
     localStorage.removeItem("mangni_profile_id");
-    onNavigate("home");
+    navigate('/');
   } catch (e: any) {
     alert("Failed to delete: " + e.message);
   } finally {
@@ -291,7 +294,7 @@ await supabase.from("deleted_profiles").insert({
     return (
       <div className="profile-page">
         <div className="profile-header">
-          <button className="profile-back" onClick={() => onNavigate("home")}>
+          <button className="profile-back" onClick={() => navigate('/')}>
             <ChevronLeft className="w-6 h-6" />
           </button>
           <div className="profile-title">My Profile</div>
@@ -309,7 +312,7 @@ await supabase.from("deleted_profiles").insert({
     return (
       <div className="profile-page">
         <div className="profile-header">
-          <button className="profile-back" onClick={() => onNavigate("home")}>
+          <button className="profile-back" onClick={() => navigate('/')}>
             <ChevronLeft className="w-6 h-6" />
           </button>
           <div className="profile-title">My Profile</div>
@@ -319,7 +322,7 @@ await supabase.from("deleted_profiles").insert({
         <div className="profile-empty">
           <h2>No profile found</h2>
           <p>Create your profile first.</p>
-          <button className="primary-btn" onClick={() => onNavigate("add-profile")}>
+          <button className="primary-btn" onClick={() => navigate("/add-profile")}>
             Add Profile
           </button>
         </div>
@@ -331,7 +334,7 @@ await supabase.from("deleted_profiles").insert({
     <div className="profile-page">
       {/* Header */}
       <div className="profile-header">
-        <button className="profile-back" onClick={() => (editMode ? setEditMode(false) : onNavigate("home"))}>
+        <button className="profile-back" onClick={() => (editMode ? setEditMode(false) :navigate('/'))}>
           <ChevronLeft className="w-6 h-6" />
         </button>
 

@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Search, Filter } from 'lucide-react';
 import ExploreFilterSheet from '../components/ExploreFilterSheet';
 import ExploreProfileCard from '../components/ExploreProfileCard';
 import { supabase } from '../lib/supabase';
 
+let girlsCache: Profile[] = [];
+const getGirlsCache = () => girlsCache;
+const setGirlsCache = (data: Profile[]) => {
+  girlsCache = data;
+};
 
 interface Profile {
   id: string;
@@ -31,15 +36,34 @@ interface Profile {
 interface Props {
   onBack: () => void;
   onSelectProfile: (profile: Profile) => void;
+  onOpenAdmin: () => void;
+  scrollPosition?: number;
+  onSaveScrollPosition?: (position: number) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
-export default function ExploreGirlsList({ onBack, onSelectProfile, onOpenAdmin }: Props) {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+export default function ExploreGirlsList({ 
+  onBack, 
+  onSelectProfile, 
+  onOpenAdmin,
+  scrollPosition,
+  onSaveScrollPosition,
+  searchQuery = '',
+  onSearchChange
+}: Props) {
+  const cachedData = getGirlsCache();
+  const [profiles, setProfiles] = useState<Profile[]>(cachedData);
+  const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>(cachedData);
+  const [displayedCount, setDisplayedCount] = useState(12);
+  const [loading, setLoading] = useState(cachedData.length === 0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
 
   const [filters, setFilters] = useState({
     ageMin: 18,
@@ -48,16 +72,56 @@ export default function ExploreGirlsList({ onBack, onSelectProfile, onOpenAdmin 
     occupation: '',
   });
 
-  const itemsPerPage = 20;
+  // Sync local search with parent when coming back
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
+// Add this at the top of the component to see what's happening
+useEffect(() => {
+  console.log('🔍 searchQuery from parent:', searchQuery);
+  console.log('🔍 localSearchQuery:', localSearchQuery);
+  setLocalSearchQuery(searchQuery);
+}, [searchQuery]);
+
+  // Restore scroll
+  useEffect(() => {
+    if (scrollPosition !== undefined && scrollPosition > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
+    }
+  }, [scrollPosition]);
+
+  // Save scroll
+  useEffect(() => {
+    if (!onSaveScrollPosition) return;
+
+    const handleScroll = () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      scrollTimeoutRef.current = setTimeout(() => {
+        const position = window.scrollY || window.pageYOffset;
+        onSaveScrollPosition(position);
+      }, 150);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [onSaveScrollPosition]);
 
   useEffect(() => {
-    fetchProfiles();
+    if (cachedData.length === 0) {
+      fetchProfiles();
+    }
   }, []);
-
-  useEffect(() => {
-    applyFiltersAndSearch();
-    setCurrentPage(1);
-  }, [searchQuery, filters, profiles]);
 
   const fetchProfiles = async () => {
     try {
@@ -68,25 +132,47 @@ export default function ExploreGirlsList({ onBack, onSelectProfile, onOpenAdmin 
         .eq('gender', 'female')
         .eq('status', 'approved')
         .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100);
 
       if (error) throw error;
-      setProfiles((data as Profile[]) || []);
+
+      setProfiles(data || []);
+      setGirlsCache(data || []);
     } catch (err) {
-      console.error('Error fetching profiles:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Debounced search and filter
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      applyFiltersAndSearch();
+      setDisplayedCount(12);
+      onSearchChange?.(localSearchQuery);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [localSearchQuery, filters, profiles]);
+
   const applyFiltersAndSearch = () => {
     let filtered = [...profiles];
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        p =>
-          p.full_name.toLowerCase().includes(query) ||
+    if (localSearchQuery && localSearchQuery.trim() !== '') {
+      const query = localSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(p => {
+        return (
+          p.full_name?.toLowerCase().includes(query) ||
           p.father_name?.toLowerCase().includes(query) ||
           p.current_residence?.toLowerCase().includes(query) ||
           p.education?.toLowerCase().includes(query) ||
@@ -94,36 +180,73 @@ export default function ExploreGirlsList({ onBack, onSelectProfile, onOpenAdmin 
           p.university_name?.toLowerCase().includes(query) ||
           p.school_name?.toLowerCase().includes(query) ||
           p.age.toString().includes(query)
-      );
+        );
+      });
     }
 
-    if (filters.ageMin || filters.ageMax) {
-      filtered = filtered.filter(
-        p => p.age >= filters.ageMin && p.age <= filters.ageMax
-      );
-    }
+    filtered = filtered.filter(
+      p => p.age >= filters.ageMin && p.age <= filters.ageMax
+    );
 
-    if (filters.education) {
+    if (filters.education && filters.education.trim() !== '') {
       filtered = filtered.filter(p =>
-        p.education?.toLowerCase().includes(filters.education.toLowerCase())
+        p.education?.toLowerCase().includes(filters.education.toLowerCase().trim())
       );
     }
 
-    if (filters.occupation) {
+    if (filters.occupation && filters.occupation.trim() !== '') {
       filtered = filtered.filter(p =>
-        p.occupation?.toLowerCase().includes(filters.occupation.toLowerCase())
+        p.occupation?.toLowerCase().includes(filters.occupation.toLowerCase().trim())
       );
     }
 
     setFilteredProfiles(filtered);
   };
 
-  const paginatedProfiles = filteredProfiles.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Infinite scroll
+  useEffect(() => {
+    const loadMore = () => {
+      if (displayedCount >= filteredProfiles.length) return;
+      
+      setLoadingMore(true);
+      setTimeout(() => {
+        setDisplayedCount(prev => prev + 12);
+        setLoadingMore(false);
+      }, 300);
+    };
 
-  const totalPages = Math.ceil(filteredProfiles.length / itemsPerPage);
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreTriggerRef.current) {
+      observerRef.current.observe(loadMoreTriggerRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [displayedCount, filteredProfiles.length, loadingMore]);
+
+  const handleSearchChange = (value: string) => {
+    setLocalSearchQuery(value);
+
+    if (value.trim() === 'OpenPanel33') {
+      setLocalSearchQuery('');
+      onSearchChange?.('');
+      onOpenAdmin();
+    }
+  };
+
+  const profilesToShow = filteredProfiles.slice(0, displayedCount);
+  const hasMore = displayedCount < filteredProfiles.length;
 
   return (
     <div className="explore-list-container">
@@ -144,64 +267,100 @@ export default function ExploreGirlsList({ onBack, onSelectProfile, onOpenAdmin 
         <Search className="explore-search-icon" />
         <input
           type="text"
-          placeholder="Search name, age, education..."
-          value={searchQuery}
-          onChange={e => {
-  const value = e.target.value;
-  setSearchQuery(value);
-
-  if (value.trim() === 'OpenPanel33') {
-    setSearchQuery('');
-    onOpenAdmin();
-  }
-}}
-
+          placeholder="Search name, age, education, location..."
+          value={localSearchQuery}
+          onChange={e => handleSearchChange(e.target.value)}
           className="explore-search-input"
         />
       </div>
 
-      <div className="explore-list-content">
-        {loading ? (
-          <div className="explore-loading">Loading profiles...</div>
-        ) : filteredProfiles.length === 0 ? (
-          <div className="explore-empty">
-            <p>No profiles found. Try adjusting your filters.</p>
-          </div>
-        ) : (
-          <div className="explore-profile-list">
-            {paginatedProfiles.map(profile => (
-              <ExploreProfileCard
-                key={profile.id}
-                profile={profile}
-                onClick={() => onSelectProfile(profile)}
-                gender="female"
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {filteredProfiles.length > 0 && (
-        <div className="explore-pagination">
-          <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-            className="explore-pagination-btn"
-          >
-            Previous
-          </button>
-          <span className="explore-pagination-info">
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage >= totalPages}
-            className="explore-pagination-btn"
-          >
-            Next
-          </button>
+      {!loading && filteredProfiles.length > 0 && (
+        <div style={{ 
+          padding: '12px 16px', 
+          fontSize: '15px', 
+          fontWeight: '500',
+          color: '#333',
+          borderBottom: '1px solid #eee'
+        }}>
+          {localSearchQuery ? (
+            <>
+              Found {filteredProfiles.length} {filteredProfiles.length === 1 ? 'profile' : 'profiles'} for 
+              <span style={{ 
+                fontWeight: '600', 
+                color: '#d97706',
+                margin: '0 4px'
+              }}>
+                "{localSearchQuery}"
+              </span>
+            </>
+          ) : (
+            <>
+              {filteredProfiles.length} {filteredProfiles.length === 1 ? 'Profile' : 'Profiles'}
+            </>
+          )}
         </div>
       )}
+
+      <div className="explore-list-content">
+        {loading ? (
+          <div className="explore-profile-list">
+            {Array(6).fill(0).map((_, i) => (
+              <div key={i} className="card-skeleton" />
+            ))}
+          </div>
+        ) : filteredProfiles.length === 0 ? (
+          <div className="explore-empty">
+            <p>
+              {localSearchQuery ? (
+                <>
+                  No profiles found for 
+                  <span style={{ fontWeight: '600', color: '#d97706', margin: '0 4px' }}>
+                    "{localSearchQuery}"
+                  </span>
+                  <br />
+                  Try different keywords.
+                </>
+              ) : (
+                'No profiles found. Try adjusting your filters.'
+              )}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="explore-profile-list">
+              {profilesToShow.map(profile => (
+                <ExploreProfileCard
+                  key={profile.id}
+                  profile={profile}
+                  onClick={() => onSelectProfile(profile)}
+                  gender="female"
+                />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div ref={loadMoreTriggerRef} style={{ height: '20px', margin: '20px 0' }}>
+                {loadingMore && (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                    Loading more profiles...
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!hasMore && filteredProfiles.length > 12 && (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '20px', 
+                color: '#666',
+                fontSize: '14px'
+              }}>
+                You've reached the end • {filteredProfiles.length} profiles shown
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {showFilter && (
         <ExploreFilterSheet

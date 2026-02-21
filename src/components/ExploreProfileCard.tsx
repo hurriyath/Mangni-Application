@@ -1,6 +1,7 @@
 import { CheckCircle2, User } from 'lucide-react';
 import girlDefault from '../assets/girl-default.png';
 
+
 interface Profile {
   id: string;
   full_name: string;
@@ -16,20 +17,25 @@ interface Props {
   onClick: () => void;
   gender: 'male' | 'female';
 }
-
-export default function ExploreProfileCard({ profile, onClick, gender }: Props) {
+ export default function ExploreProfileCard({ profile, onClick, gender }: Props) {
   const isGirl = gender === 'female';
 
-  const imgSrc = isGirl ? girlDefault : profile.profile_pic;
+  const imgSrc = isGirl
+  ? girlDefault : profile.profile_pic;
+
 
   return (
+
     <div className="explore-card" onClick={onClick}>
   <img
-    src={imgSrc}
-    alt={profile.full_name}
-    loading="lazy"
-    className="card-img"
-  />
+  src={imgSrc}
+  alt={profile.full_name}
+  loading="lazy"
+  decoding="async"
+  className="card-img"
+/>
+
+
 
   <div className="card-info">
     <div className="card-name-row">
