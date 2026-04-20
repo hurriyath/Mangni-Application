@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">mangni</string>
-    <string name="title_activity_main">mangni</string>
+    <string name="app_name">Mangni</string>
+    <string name="title_activity_main">Mangni</string>
     <string name="package_name">com.mangni.app</string>
     <string name="custom_url_scheme">com.mangni.app</string>
 </resources>

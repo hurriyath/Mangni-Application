@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import girlDisplay from "../assets/girl-display.png";
 import { useNavigate } from "react-router-dom";
-
 import {
   ChevronLeft,
   Search,
@@ -74,12 +73,11 @@ export default function AdminDashboard() {
     male: 0,
     female: 0,
   });
-
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
-
+const [savedScrollY, setSavedScrollY] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -106,6 +104,14 @@ export default function AdminDashboard() {
     applyFiltersAndSort();
     setCurrentPage(1);
   }, [searchQuery, genderFilter, statusFilter, sortBy, profiles]);
+  // Restore scroll position when returning to list
+useEffect(() => {
+  if (viewMode === 'list' && savedScrollY > 0) {
+    setTimeout(() => {
+      window.scrollTo({ top: savedScrollY, behavior: 'auto' });
+    }, 100);
+  }
+}, [viewMode]);
 
   const fetchProfiles = async () => {
     try {
@@ -128,6 +134,13 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+  // Save scroll position when clicking on a profile
+const handleViewProfile = (profile) => {
+  setSavedScrollY(window.scrollY);
+  setSelectedProfile(profile);
+  setViewMode('view');
+   window.scrollTo({ top: 0, behavior: 'instant' });
+};
 
   const calculateStats = (profileList: Profile[]) => {
     const stats = {
@@ -241,6 +254,7 @@ export default function AdminDashboard() {
       setActionLoading(null);
     }
   };
+  
 
   const handleDelete = async (id: string) => {
     try {
@@ -392,6 +406,7 @@ export default function AdminDashboard() {
                 className="search-input"
               />
             </div>
+            
 
             <div className="filter-controls">
               <div className="filter-group">
@@ -440,126 +455,89 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <>
-                <div className="profiles-table">
-                  <div className="table-header">
-                    <div className="col-photo">Photo</div>
-                    <div className="col-name">Name</div>
-                    <div className="col-info">Age / Gender</div>
-                    <div className="col-residence">Residence</div>
-                    <div className="col-status">Status</div>
-                    <div className="col-actions">Actions</div>
-                  </div>
+                <div className="admin-cards-container">
+  {filteredProfiles
+    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    .map(profile => (
+      <div key={profile.id} className="admin-card">
+        <div className="card-header">
+          <div className="card-photo">
+            {profile.profile_pic ? (
+              <img
+                src={profile.gender === "female" ? girlDisplay : profile.profile_pic}
+                alt={profile.full_name}
+                className="card-avatar"
+              />
+            ) : (
+              <div className="card-avatar-placeholder">📷</div>
+            )}
+          </div>
+          <div className="card-info">
+            <h3 className="card-name">{profile.full_name}</h3>
+            <div className={`card-status ${profile.status}`}>
+              {profile.status === 'approved' && '✅ Approved'}
+              {profile.status === 'pending' && '⏳ Pending'}
+              {profile.status === 'rejected' && '❌ Rejected'}
+            </div>
+          </div>
+        </div>
 
-                  <div className="table-body">
-                    {filteredProfiles
-                      .slice(
-                        (currentPage - 1) * itemsPerPage,
-                        currentPage * itemsPerPage
-                      )
-                      .map(profile => (
-                    <div key={profile.id} className="table-row">
-                      <div className="col-photo">
-                        {profile.profile_pic ? (
-                          <img
-    src={profile.gender === "female" ? girlDisplay : profile.profile_pic}
-    alt={profile.full_name}
-    className="profile-thumbnail"
-    loading="lazy"
-  />
+        <div className="card-details">
+          <div className="detail-item">
+            <span className="detail-value">{profile.age || '?'} yrs</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-value">{profile.father_name || '—'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-value">{profile.paternal_grandfather || '—'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-value">{profile.maternal_grandfather || '—'}</span>
+          </div>
+        </div>
 
-                        ) : (
-                          <div className="profile-placeholder">No Photo</div>
-                        )}
-                      </div>
-
-                      <div className="col-name">
-                        <div className="font-semibold text-gray-900">
-                          {profile.full_name}
-                        </div>
-                      </div>
-
-                      <div className="col-info">
-                        <div className="text-sm text-gray-600">
-                          {profile.age}y, {profile.gender}
-                        </div>
-                      </div>
-
-                      <div className="col-residence">
-                        <div className="text-sm text-gray-600">
-                          {profile.current_residence}
-                        </div>
-                      </div>
-
-                      <div className="col-status">
-                        <span
-                          className={`status-badge ${
-                            profile.status === 'approved'
-                              ? 'status-approved'
-                              : profile.status === 'rejected'
-                              ? 'status-rejected'
-                              : 'status-pending'
-                          }`}
-                        >
-                          {profile.status.charAt(0).toUpperCase() +
-                            profile.status.slice(1)}
-                        </span>
-                      </div>
-
-                      <div className="col-actions">
-                        <button
-                          onClick={() => {
-                            setSelectedProfile(profile);
-                            setViewMode('view');
-                          }}
-                          className="action-btn action-view"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-
-                        {profile.status !== 'approved' && (
-                          <button
-                            onClick={() => handleApprove(profile.id)}
-                            disabled={actionLoading === profile.id}
-                            className="action-btn action-approve"
-                            title="Approve"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {profile.status !== 'rejected' && (
-                          <button
-                            onClick={() => setRejectModal(profile.id)}
-                            disabled={actionLoading === profile.id}
-                            className="action-btn action-reject"
-                            title="Reject"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() =>
-                            setConfirmDialog({
-                              title: 'Delete Profile',
-                              message:
-                                'Are you sure you want to delete this profile?',
-                              action: 'delete',
-                              profileId: profile.id,
-                            })
-                          }
-                          disabled={actionLoading === profile.id}
-                          className="action-btn action-delete"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  </div>
-                </div>
+        <div className="card-actions">
+          <button
+            onClick={() => handleViewProfile(profile)}
+            className="card-btn view"
+          >
+            👁️ View
+          </button>
+          {profile.status !== 'approved' && (
+            <button
+              onClick={() => handleApprove(profile.id)}
+              className="card-btn approve"
+            >
+              ✅ Approve
+            </button>
+          )}
+          {profile.status !== 'rejected' && (
+            <button
+              onClick={() => setRejectModal(profile.id)}
+              className="card-btn reject"
+            >
+              ❌ Reject
+            </button>
+          )}
+          <button
+  onClick={() =>
+    setConfirmDialog({
+      title: 'Delete Profile',
+      message: 'Are you sure you want to delete this profile?',
+      action: 'delete',
+      profileId: profile.id,
+    })
+  }
+  className="card-btn delete"
+>
+  🗑️ Delete
+</button>
+          
+        </div>
+      </div>
+    ))}
+</div>
 
                 <div className="pagination">
                   <div className="pagination-info">

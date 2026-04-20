@@ -92,30 +92,30 @@ useEffect(() => {
       <div className="details-card">
         <h3>Family</h3>
         <Info label="Father Name" value={profile.father_name} />
-        <Info label="Paternal Grandfather" value={profile.paternal_grandfather} />
-        <Info label="Maternal Grandfather" value={profile.maternal_grandfather} />
+        <Info label="Paternal Grandfather - Dada" value={profile.paternal_grandfather} />
+        <Info label="Maternal Grandfather - Nana" value={profile.maternal_grandfather} />
       </div>
 
       {/* EDUCATION + RESIDENCE */}
       <div className="details-card">
         <h3>Education and Residence</h3>
-        <Info label="Education" value={profile.education} />
-        <Info label="University" value={profile.university_name} />
+        <Info label="Education-ongoing/completed" value={profile.education} />
+        <Info label="University/College" value={profile.university_name} />
         <Info label="School" value={profile.school_name} />
-        <Info label="Residence" value={profile.current_residence} />
+        <Info label="Residence/Location" value={profile.current_residence} />
       </div>
 
       {/* CONTACT */}
       <div className="details-card">
         <h3>Contact Information</h3>
-        <Info label="Contact Person" value={profile.contact_person} />
-        <Info label="Contact Number" value={profile.contact_number} />
+        <Info label="Contact Person Name" value={profile.contact_person} />
+        <Info label="Contact Person Number" value={profile.contact_number} />
       </div>
 
       {/* ABOUT → only if exists */}
       {profile.description && profile.description.trim() !== "" && (
         <div className="details-card">
-          <h3>About</h3>
+          <h3>About Person</h3>
           <p className="details-about">{profile.description}</p>
         </div>
       )}

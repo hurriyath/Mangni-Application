@@ -17,7 +17,7 @@ export default function ExploreGenderSelect({ onViewBoys, onViewGirls }: Props) 
               <Users className="w-12 h-12" />
             </div>
             <h2 className="explore-gender-label">View Boys</h2>
-            <p className="explore-gender-desc">Find your perfect match</p>
+            <p className="explore-gender-desc">Find Boy for your daughter</p>
           </button>
 
           <button className="explore-gender-card girls-card" onClick={onViewGirls}>
@@ -25,7 +25,7 @@ export default function ExploreGenderSelect({ onViewBoys, onViewGirls }: Props) 
               <Users className="w-12 h-12" />
             </div>
             <h2 className="explore-gender-label">View Girls</h2>
-            <p className="explore-gender-desc">Find your perfect match</p>
+            <p className="explore-gender-desc">Find Girl for your son</p>
           </button>
         </div>
       </div>

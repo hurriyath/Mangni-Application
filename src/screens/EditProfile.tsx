@@ -34,6 +34,8 @@ type Profile = {
 };
 
 export default function EditProfile() {
+
+  
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -43,8 +45,8 @@ export default function EditProfile() {
   const [form, setForm] = useState<Partial<Profile>>({});
   const [saving, setSaving] = useState(false);
   const [photoSuccess, setPhotoSuccess] = useState(false);
-
-  // password modal state (for edit + delete)
+  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
+    // password modal state (for edit + delete)
 
 const [appMessage, setAppMessage] = useState("");
 const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -135,10 +137,12 @@ async function uploadEditedPhoto(blob: Blob) {
 
   function statusMessage(p: Profile) {
     if (p.is_deleted) return "You deleted this profile. It is not public now.";
-    if (p.status === "approved" || p.approved) return "✅ Your profile is approved and visible publicly.";
-    if (p.status === "rejected") return `❌ Rejected: ${p.rejection_reason || "No reason provided"}`;
-    return "🟡 Pending: Your profile is under admin review.";
+    if (p.status === "approved" || p.approved) return "Profile Approved! Your profile is now visible to Mangni users.";
+    if (p.status === "rejected") return ` Rejected: ${p.rejection_reason || "No reason provided"}`;
+    return "Pending Review: Your profile has been submitted, Syed Hurriyath will review it shortly. Thank you.";
   }
+
+  
 
 
 
@@ -206,12 +210,29 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
   }
 }
 
-async function submitEdit() {
+  async function submitEdit() {
   if (!profile?.id) return;
 
   try {
     setSaving(true);
-const isAlreadyApproved = profile?.approved === true;
+    
+    // ✅ ADD THIS BLOCK - Upload photo if there's a pending one
+    let finalPhotoUrl = form.profile_pic;
+    if (pendingPhoto) {
+      const blob = await fetch(pendingPhoto).then(r => r.blob());
+      const fileName = `${crypto.randomUUID()}.jpg`;
+      
+      await supabase.storage.from("profile-photos").upload(fileName, blob, {
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+      
+      const { data } = supabase.storage.from("profile-photos").getPublicUrl(fileName);
+      finalPhotoUrl = data.publicUrl + "?t=" + Date.now();
+    }
+    // ✅ END OF ADDED BLOCK
+
+    const isAlreadyApproved = profile?.approved === true;
     const payload: any = {
       full_name: form.full_name?.trim() || null,
       father_name: form.father_name?.trim() || null,
@@ -221,23 +242,22 @@ const isAlreadyApproved = profile?.approved === true;
       occupation: form.occupation?.trim() || null,
       university_name: form.university_name?.trim() || null,
       school_name: form.school_name?.trim() || null,
-
       current_residence: form.current_residence?.trim() || null,
-      contact_person: form.contact_person?.trim() || null,   // ✅
-  contact_number: form.contact_number?.trim() || null,   // ✅
+      contact_person: form.contact_person?.trim() || null,
+      contact_number: form.contact_number?.trim() || null,
       description: form.description?.trim() || null,
-
-      // ✅ never send "" for date/int
       dob: form.dob ? form.dob : null,
       age: form.age ? Number(form.age) : null,
-
+      profile_pic: finalPhotoUrl,  // ✅ ADD THIS LINE
       updated_at: new Date().toISOString(),
     };
+    
+    // ... rest of your code stays the same
     if (!isAlreadyApproved) {
-  payload.status = "pending";
-  payload.approved = false;
-  payload.rejection_reason = null;
-}
+      payload.status = "pending";
+      payload.approved = false;
+      payload.rejection_reason = null;
+    }
 
     const { error } = await supabase
       .from("profiles")
@@ -246,8 +266,10 @@ const isAlreadyApproved = profile?.approved === true;
 
     if (error) throw error;
 
-   showToast("Profile updated successfully", "success");
-
+    // ✅ ADD THIS - Clear pending photo after save
+    setPendingPhoto(null);
+    
+    showToast("Profile updated successfully", "success");
     setEditMode(false);
     await fetchMyProfile();
   } catch (e) {
@@ -256,7 +278,7 @@ const isAlreadyApproved = profile?.approved === true;
   } finally {
     setSaving(false);
   }
-}  
+}
 
   async function deleteProfile() {
   if (!profile?.id) return;
@@ -360,7 +382,9 @@ await supabase.from("deleted_profiles").insert({
   src={
     profile.gender === "female"
       ? girlDisplay
-      : (editMode ? form.profile_pic : profile.profile_pic) || boyDefault
+      : (editMode && pendingPhoto) 
+        ? pendingPhoto  // Show selected photo in edit mode
+        : (editMode ? form.profile_pic : profile.profile_pic) || ''
   }
   className={`profile-hero-img ${profile.gender === "female" ? "girl-img" : ""}`}
 />
@@ -373,11 +397,32 @@ await supabase.from("deleted_profiles").insert({
 
 
   {editMode && profile.gender === "male" && (
-    <label className="change-photo-btn">
-      Change Photo
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: '12px',
+    marginBottom: '20px',
+  }}>
+    <label style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      backgroundColor: '#1e293b',
+      color: 'white',
+      padding: '10px 24px',
+      borderRadius: '40px',
+      fontSize: '14px',
+      fontWeight: '500',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      border: 'none',
+    }}>
+      📷 Change Photo
       <input type="file" hidden accept="image/*" onChange={handleEditImageUpload} />
     </label>
-  )}
+  </div>
+)}
 </div>
 
 
@@ -385,210 +430,324 @@ await supabase.from("deleted_profiles").insert({
       {/* Status message */}
       <div className="profile-name-block">
         <h1>{profile.full_name}</h1>
-        <p>{profile.gender} • {profile.age} years</p>
+       
 
-        <div className="profile-status-box">
-          <div className="profile-status-title">Status</div>
-          <div className="profile-status-msg">{statusMessage(profile)}</div>
-          {profile.status === "rejected" && profile.rejection_reason && (
-            <div className="profile-reject-reason">Reason: {profile.rejection_reason}</div>
-          )}
-        </div>
+        
       </div>
 
       {/* VIEW MODE */}
       {!editMode ? (
-        <div className="profile-sections">
-          <div className="profile-section">
-  <h3 className="profile-section-title">Profile Summary</h3>
-
-  <div className="profile-grid">
-    <Row label="Father" value={profile.father_name} />
-    <Row label="Age" value={`${profile.age} years`} />
-    <Row label="Education" value={profile.education} />
-    <Row label="Occupation" value={profile.occupation} />
-    <Row label="Residence" value={profile.current_residence} />
-  
-
-      <Row label="Paternal Grandfather" value={profile.paternal_grandfather} />
-      <Row label="Maternal GrandFather" value={profile.maternal_grandfather} />
-      <Row label="University" value={profile.university_name} />
-      <Row label="School" value={profile.school_name} />
-      <Row label="Contact Person" value={profile.contact_person} />
-      <Row label="Contact Number" value={profile.contact_number} />
-      <Row label="About" value={profile.description} multiline full />
+  <div className="profile-view-mode">
+    
+    {/* Status Card - Single */}
+    <div className={`status-single ${profile.status}`}>
+      <div className="status-icon">
+        {profile.status === 'approved' && '✅'}
+        {profile.status === 'pending' && '⏳'}
+        {profile.status === 'rejected' && '❌'}
+      </div>
+      <div className="status-text">
+        {statusMessage(profile)}
+        {profile.status === "rejected" && profile.rejection_reason && (
+          <div className="status-reason">Reason: {profile.rejection_reason}</div>
+        )}
+      </div>
     </div>
-  </div>
 
-{profile.description && (
-  <div className="profile-section">
-    <h3 className="profile-section-title">About</h3>
-    <div className="profile-about">{profile.description}</div>
-  </div>
-)}
+    {/* Quick Info - Vertical Stack */}
+    <div className="quick-info-vertical">
+      <div className="info-row">
+        <span className="info-label">Age</span>
+        <span className="info-value">{profile.age} years</span>
+      </div>
+      <div className="info-row">
+        <span className="info-label">Gender</span>
+        <span className="info-value">{profile.gender === 'male' ? 'Male' : 'Female'}</span>
+      </div>
+      <div className="info-row">
+        <span className="info-label">Occupation</span>
+        <span className="info-value">{profile.occupation || '—'}</span>
+      </div>
+      <div className="info-row">
+        <span className="info-label">Residence</span>
+        <span className="info-value">{profile.current_residence || '—'}</span>
+      </div>
+    </div>
 
-          <div className="profile-footer-note">
-            Created: {new Date(profile.created_at).toDateString()}
+    {/* Personal Information */}
+    <div className="info-card">
+      <h3 className="card-title">Personal Information</h3>
+      <div className="card-content">
+        <div className="card-row">
+          <span className="row-label">Full Name</span>
+          <span className="row-value">{profile.full_name || '—'}</span>
+        </div>
+        <div className="card-row">
+          <span className="row-label">Father's Name</span>
+          <span className="row-value">{profile.father_name || '—'}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Family Background */}
+    <div className="info-card">
+      <h3 className="card-title">Family Background</h3>
+      <div className="card-content">
+        <div className="card-row">
+          <span className="row-label">Paternal Grandfather</span>
+          <span className="row-value">{profile.paternal_grandfather || '—'}</span>
+        </div>
+        <div className="card-row">
+          <span className="row-label">Maternal Grandfather</span>
+          <span className="row-value">{profile.maternal_grandfather || '—'}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Education & Work */}
+    <div className="info-card">
+      <h3 className="card-title">Education & Work</h3>
+      <div className="card-content">
+        <div className="card-row">
+          <span className="row-label">Education</span>
+          <span className="row-value">{profile.education || '—'}</span>
+        </div>
+        <div className="card-row">
+          <span className="row-label">University</span>
+          <span className="row-value">{profile.university_name || '—'}</span>
+        </div>
+        <div className="card-row">
+          <span className="row-label">School</span>
+          <span className="row-value">{profile.school_name || '—'}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Contact Information */}
+    <div className="info-card">
+      <h3 className="card-title">Contact Information</h3>
+      <div className="card-content">
+        <div className="card-row">
+          <span className="row-label">Contact Person</span>
+          <span className="row-value">{profile.contact_person || '—'}</span>
+        </div>
+        <div className="card-row">
+          <span className="row-label">Contact Number</span>
+          <span className="row-value">{profile.contact_number || '—'}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* About */}
+    {profile.description && (
+      <div className="info-card">
+        <h3 className="card-title">About</h3>
+        <div className="about-content">{profile.description}</div>
+      </div>
+    )}
+
+    {/* Created Date */}
+    <div className="created-date">
+      Created: {new Date(profile.created_at).toDateString()}
+    </div>
+
+    {/* Action Buttons */}
+    <div className="view-actions">
+      <button className="btn-edit" onClick={() => setEditMode(true)}>
+        ✏️ Edit Profile
+      </button>
+      <button className="btn-delete" onClick={() => setShowDeleteConfirm(true)} disabled={saving}>
+        🗑️ Delete Profile
+      </button>
+    </div>
+
+  </div>
+  
+      ) : (
+  <div className="edit-page">
+    {/* Edit Form Card */}
+    <div className="edit-form-card">
+      
+      {/* Personal Information Section */}
+      <div className="form-section">
+        <div className="form-section-title">Personal Information</div>
+        
+        <div className="form-group">
+          <label className="form-label">Full Name</label>
+          <input
+            className="form-input"
+            value={form.full_name || ""}
+            onChange={(e) => setField("full_name", e.target.value)}
+            placeholder="Enter your full name"
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Current Residence</label>
+          <input
+            className="form-input"
+            value={form.current_residence || ""}
+            onChange={(e) => setField("current_residence", e.target.value)}
+            placeholder="City, State"
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Occupation</label>
+          <select
+            className="form-input"
+            value={form.occupation || ""}
+            onChange={(e) => setField("occupation", e.target.value)}
+          >
+            <option value="">Select occupation</option>
+            <option value="Student">Student</option>
+            <option value="Business">Business</option>
+            <option value="Job">Job</option>
+            <option value="Gemstones Business">GemStones Business</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Family Information Section */}
+      <div className="form-section">
+        <div className="form-section-title">Family Information</div>
+        
+        <div className="form-group">
+          <label className="form-label">Father's Name</label>
+          <input
+            className="form-input"
+            value={form.father_name || ""}
+            onChange={(e) => setField("father_name", e.target.value)}
+            placeholder="Enter father's name"
+          />
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Paternal Grandfather</label>
+            <input
+              className="form-input"
+              value={form.paternal_grandfather || ""}
+              onChange={(e) => setField("paternal_grandfather", e.target.value)}
+              placeholder="Grandfather name"
+            />
           </div>
 
-        <button
-  type="button"
-  className="primary-btn"
-  onClick={() => setEditMode(true)}
-
->
-  Edit Profile
-</button>
-
-         <button
-           type="button"
-           className="secondary-btn danger" onClick={() => setShowDeleteConfirm(true)}
- disabled={saving}>
-
-            <Trash2 className="w-5 h-5" /> Delete Profile
-          </button>
+          <div className="form-group">
+            <label className="form-label">Maternal Grandfather</label>
+            <input
+              className="form-input"
+              value={form.maternal_grandfather || ""}
+              onChange={(e) => setField("maternal_grandfather", e.target.value)}
+              placeholder="Grandfather name"
+            />
+          </div>
         </div>
-       ) : (
-  <div className="edit-page">
-
-    {/* PHOTO CARD – MALE ONLY */}
-   
-
-    {/* EDIT FORM */}
-    <div className="edit-form-card">
-
-      <div className="form-group">
-        <label className="form-label">Full Name</label>
-        <input
-          className="form-input"
-          value={form.full_name || ""}
-          onChange={(e) => setField("full_name", e.target.value)}
-        />
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Father Name</label>
-        <input
-          className="form-input"
-          value={form.father_name || ""}
-          onChange={(e) => setField("father_name", e.target.value)}
-        />
+      {/* Education Section */}
+      <div className="form-section">
+        <div className="form-section-title">Education</div>
+        
+        <div className="form-group">
+          <label className="form-label">Education</label>
+          <input
+            className="form-input"
+            value={form.education || ""}
+            onChange={(e) => setField("education", e.target.value)}
+            placeholder="e.g., Bachelor's in Computer Science"
+          />
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">University <span className="optional">(if any)</span></label>
+            <input
+              className="form-input"
+              value={form.university_name || ""}
+              onChange={(e) => setField("university_name", e.target.value)}
+              placeholder="University name"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">School</label>
+            <input
+              className="form-input"
+              value={form.school_name || ""}
+              onChange={(e) => setField("school_name", e.target.value)}
+              placeholder="School name"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Paternal Grandfather</label>
-        <input
-          className="form-input"
-          value={form.paternal_grandfather || ""}
-          onChange={(e) => setField("paternal_grandfather", e.target.value)}
-        />
+      {/* Contact Information Section */}
+      <div className="form-section">
+        <div className="form-section-title">Contact Information</div>
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Contact Person</label>
+            <input
+              className="form-input"
+              value={form.contact_person || ""}
+              onChange={(e) => setField("contact_person", e.target.value)}
+              placeholder="Name of contact person"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Contact Number</label>
+            <input
+              className="form-input"
+              value={form.contact_number || ""}
+              onChange={(e) => setField("contact_number", e.target.value)}
+              placeholder="Phone number"
+              type="tel"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Maternal Grandfather</label>
-        <input
-          className="form-input"
-          value={form.maternal_grandfather || ""}
-          onChange={(e) => setField("maternal_grandfather", e.target.value)}
-        />
+      {/* About Section */}
+      <div className="form-section">
+        <div className="form-section-title">About Me</div>
+        
+        <div className="form-group">
+          <textarea
+            className="form-textarea"
+            rows={4}
+            value={form.description || ""}
+            onChange={(e) => setField("description", e.target.value)}
+            placeholder="Tell us about yourself, your interests, and what you're looking for..."
+          />
+        </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Education</label>
-        <input
-          className="form-input"
-          value={form.education || ""}
-          onChange={(e) => setField("education", e.target.value)}
-        />
+      {/* Action Buttons */}
+      <div className="edit-actions">
+        <button className="btn-save" onClick={submitEdit} disabled={saving}>
+          {saving ? 'Saving...' : 'Save & Update Profile'}
+        </button>
+
+        <button 
+  className="btn-cancel" 
+  onClick={() => {
+    setEditMode(false);
+    setPendingPhoto(null);  // ✅ Discard pending photo
+    setForm(profile as Profile);  // ✅ Reset form to original
+  }} 
+  disabled={saving}
+>
+  Cancel
+</button>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">University</label>
-        <input
-          className="form-input"
-          value={form.university_name || ""}
-          onChange={(e) => setField("university_name", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">School</label>
-        <input
-          className="form-input"
-          value={form.school_name || ""}
-          onChange={(e) => setField("school_name", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Occupation</label>
-        <select
-          className="form-input"
-          value={form.occupation || ""}
-          onChange={(e) => setField("occupation", e.target.value)}
-        >
-          <option value="">Select occupation</option>
-          <option value="student">Student</option>
-          <option value="business">Business</option>
-          <option value="job">Job</option>
-          <option value="GemStones Business">GemStones Business</option>
-          <option value="Others">Others</option>
-        </select>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Current Residence</label>
-        <input
-          className="form-input"
-          value={form.current_residence || ""}
-          onChange={(e) => setField("current_residence", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Contact Person</label>
-        <input
-          className="form-input"
-          value={form.contact_person || ""}
-          onChange={(e) => setField("contact_person", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Contact Number</label>
-        <input
-          className="form-input"
-          value={form.contact_number || ""}
-          onChange={(e) => setField("contact_number", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">About</label>
-        <textarea
-          className="form-textarea"
-          rows={4}
-          value={form.description || ""}
-          onChange={(e) => setField("description", e.target.value)}
-        />
-      </div>
-
-      <button className="submit-btn" onClick={submitEdit} disabled={saving}>
-        Save & Send for Approval
-      </button>
-
-      <button
-        className="cancel-btn"
-        onClick={() => setEditMode(false)}
-        disabled={saving}
-      >
-        Cancel
-      </button>
     </div>
   </div>
-)}
-
-    
+)}    
      
 {showDeleteConfirm && (
   <div className="modal-overlay">
@@ -617,11 +776,28 @@ await supabase.from("deleted_profiles").insert({
     </div>
   </div>
 )}
-{toast && (
-  <div className={`toast-msg ${toast.type}`}>
+
+  {toast && (
+  <div style={{
+    position: 'fixed',
+    bottom: '70px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: toast.type === 'success' ? '#10b981' : '#ef4444',
+    color: 'white',
+    padding: '10px 20px',
+    borderRadius: '40px',
+    fontSize: '13px',
+    fontWeight: '500',
+    zIndex: 9999,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+  }}>
     {toast.message}
   </div>
-)}
+)}  
+
 {showCrop && (
   <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
     <div className="bg-white p-6 rounded-xl w-96">
@@ -643,18 +819,20 @@ await supabase.from("deleted_profiles").insert({
         </button>
 
         <button
-          onClick={async () => {
-            const croppedImage = await getCroppedImg(imagePreview, croppedAreaPixels);
-            const blob = await fetch(croppedImage).then(r => r.blob());
-            setCroppedBlob(blob);
-            setImagePreview(croppedImage);
-            setShowCrop(false);
-            await uploadEditedPhoto(blob);
-          }}
-          className="px-4 py-2 bg-amber-500 text-white rounded"
-        >
-          Done
-        </button>
+  onClick={async () => {
+    const croppedImage = await getCroppedImg(imagePreview, croppedAreaPixels);
+    const blob = await fetch(croppedImage).then(r => r.blob());
+    setCroppedBlob(blob);
+    setPendingPhoto(croppedImage);  // <-- STORE, NOT UPLOAD
+    setImagePreview(croppedImage);
+    setShowCrop(false);
+    showToast("Photo selected - click Save to keep", "success");  // <-- OPTIONAL TOAST
+  }}
+  className="px-4 py-2 bg-amber-500 text-white rounded"
+>
+  Done
+</button>
+
       </div>
     </div>
   </div>

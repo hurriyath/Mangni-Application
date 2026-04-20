@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeft, Upload, AlertCircle, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getDeviceId } from "../utils/device";
@@ -77,6 +77,7 @@ async function optimizeImage(file: File) {
     useWebWorker: true,
     initialQuality: 0.9,
   };
+  
 
   return await imageCompression(file, options);
 }
@@ -157,6 +158,7 @@ async function getCroppedImg(imageSrc: string, crop: any) {
    setImageFile(file);
    setImagePreview(URL.createObjectURL(file)); // show preview
   setShowCrop(true);
+  
 
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -177,9 +179,9 @@ async function getCroppedImg(imageSrc: string, crop: any) {
     if (!formData.occupation) newErrors.occupation = 'Occupation is required';
     if (formData.description && wordCount > 50) newErrors.description = 'Description cannot exceed 50 words';
 
-    if (formData.gender === 'male' && !imageFile) {
-      newErrors.profile_pic = 'Male users must upload a profile picture';
-    }
+    if (formData.gender === 'male' && !croppedBlob) {
+  newErrors.profile_pic = 'Please upload and crop a profile picture';
+}
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -288,9 +290,9 @@ if (formData.gender === 'male' && age < 16) {
         throw error;
       }
       if (data?.length) {
-  localStorage.setItem("mangni_profile_id", data[0].id);
+  const newProfile = data[0];
+  localStorage.setItem("mangni_profile_id", newProfile.id);
 }
-
       showToast('Profile submitted — wait for admin approval.', 'success');
       setTimeout(() => {
         setFormData({
@@ -429,12 +431,14 @@ if (formData.gender === 'male' && age < 16) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth *</label>
             <input
-              type="date"
-              name="dob"
-              value={formData.dob}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            />
+  type="date"
+  name="dob"
+  value={formData.dob}
+  onChange={handleInputChange}
+  placeholder="DD/MM/YYYY"
+  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+  style={{ position: 'relative' }}
+/>
             {errors.dob && <p className="text-red-500 text-sm mt-1">{errors.dob}</p>}
           </div>
 
@@ -459,7 +463,7 @@ if (formData.gender === 'male' && age < 16) {
               value={formData.paternal_grandfather}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              placeholder="Enter name"
+              placeholder="Dada ka naam"
             />
             {errors.paternal_grandfather && <p className="text-red-500 text-sm mt-1">{errors.paternal_grandfather}</p>}
           </div>
@@ -472,7 +476,7 @@ if (formData.gender === 'male' && age < 16) {
               value={formData.maternal_grandfather}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              placeholder="Enter name"
+              placeholder="Nana ka naam"
             />
             {errors.maternal_grandfather && <p className="text-red-500 text-sm mt-1">{errors.maternal_grandfather}</p>}
           </div>
@@ -484,7 +488,6 @@ if (formData.gender === 'male' && age < 16) {
   value={formData.occupation}
   onChange={handleInputChange}
   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-  required
 >
   <option value="">Select occupation</option>
   <option value="Student">Student</option>
@@ -505,7 +508,7 @@ if (formData.gender === 'male' && age < 16) {
               value={formData.education}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              placeholder="sslc,12th,mbbs,BE,BA etc."
+              placeholder="10th,12th,BE,BA,etc.."
             />
           </div>
 
@@ -517,7 +520,7 @@ if (formData.gender === 'male' && age < 16) {
               value={formData.university_name}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              placeholder="Enter university name"
+              placeholder="Enter college name"
             />
           </div>
 
@@ -541,7 +544,7 @@ if (formData.gender === 'male' && age < 16) {
               value={formData.current_residence}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              placeholder="Enter current residence"
+              placeholder="ex:Alipur,Bengalur,Dubai..."
             />
             {errors.current_residence && <p className="text-red-500 text-sm mt-1">{errors.current_residence}</p>}
           </div>
@@ -583,7 +586,7 @@ if (formData.gender === 'male' && age < 16) {
             onChange={handleInputChange}
             maxLength={500}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none h-24"
-            placeholder="Tell us about yourself (max 50 words)"
+            placeholder="Tell us about yourself (max-50 words)"
           />
           {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
         </div>
@@ -632,6 +635,8 @@ if (formData.gender === 'male' && age < 16) {
             setCroppedBlob(blob);
             setImagePreview(croppedImage);
             setShowCrop(false);
+            setErrors({});
+            setToast(null);
           }}
           className="px-4 py-2 bg-amber-500 text-white rounded"
         >
